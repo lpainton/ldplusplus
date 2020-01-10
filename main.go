@@ -11,7 +11,7 @@ import (
 
 const apiToken = "xoxb-51553666834-887269487187-8gqXxYVqA0hAW67Zscmbc6d7"
 
-type command int
+type Command int
 
 const (
 	play command = iota
@@ -32,28 +32,6 @@ type message struct {
 
 type task struct {
 	message
-}
-
-type order uint
-type player string
-type channel string
-
-type table struct {
-	current order
-	names   map[player]string
-	players map[player]order
-	hands   map[player][6]int
-	dice    map[player]int
-}
-
-func newTable() *table {
-	return &table{
-		current: order(0),
-		names:   make(map[player]string),
-		players: make(map[player]order),
-		hands:   make(map[player][6]int),
-		dice:    make(map[player]int),
-	}
 }
 
 type server struct {
