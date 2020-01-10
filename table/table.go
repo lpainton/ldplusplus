@@ -19,6 +19,9 @@ type ErrorBidTooLow error
 
 type player string
 type order uint
+func successor(o order, bound int) order {
+	return order((int(o) + 1)%bound)
+}
 
 // bid is encoded as (quantity * 6) + face.
 // This gives us a single number that is monotonically increasing in both dimensions
@@ -82,7 +85,7 @@ func (t *Table) Bid(p player, quantity uint, f Face) error {
 	}
 
 	t.last = b
-	t.turn = order((int(t.turn) + 1)%len(t.players))
+	t.turn = successor(t.turn, len(t.players))
 	return nil
 }
 
