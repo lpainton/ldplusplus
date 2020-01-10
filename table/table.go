@@ -64,7 +64,7 @@ func (t *Table) Play(p player) bool {
 }
 
 /* 
-* Bid changes the to the new bid if and only if
+* Bid changes the last bid to the new bid if and only if
 * the turn matches the current player and
 * it is strictly greater than the last bid. It also
 * advances the turn by one
@@ -87,7 +87,7 @@ func (t *Table) Bid(p player, quantity uint, f Face) error {
 }
 
 /*
-* Lair returns true if the last bid is inconsistent
+* Liar returns true if the last bid is inconsistent
 * with the game state.
 *
 * Consistency means that the number of wilds + Faces bid
