@@ -26,8 +26,12 @@ const (
 type State uint8
 
 const (
-	Open State = iota
-	Play State = iota
+	Empty State = iota
+	WaitingForSecond State = iota
+	Ready State = iota
+	RoundStart State = iota
+	RoundBid State = iota
+	RoundEnd State = iota
 	Done State = iota
 )
 
@@ -45,8 +49,18 @@ func successor(o order, bound int) order {
 	return order((int(o) + 1) % bound)
 }
 
+//Round represents a single round from rolls to bidding to calling liar
+type round struct {
+	turn    place
+	latest  bid
+	players []person
+	hands   map[person][6]uint
+}
+
 //Table reflects a single table where a game is in progress
 type Table struct {
+	// State of the table
+	state State
 	// Order of people at the table
 	people []person
 	// Map of people to dice left
@@ -63,14 +77,6 @@ type Table struct {
 	*rand.Rand
 }
 
-//Round represents a single round from rolls to bidding to calling liar
-type round struct {
-	turn    place
-	latest  bid
-	players []person
-	hands   map[person][6]uint
-}
-
 //New creates a new table running liar's dice
 func New() *Table {
 	return &Table{
@@ -82,7 +88,11 @@ func New() *Table {
 	}
 }
 
-func (t *Table) newRound(offset place) {
+func (t *Table) newRound(offset place) error {
+	if t.state != Ready {
+		return fmt.Errorf("table is not ready for a new round")
+	}
+
 	//Find the position of the last loser
 	var s place
 	for l := place(len(t.people)); s < l && (t.people[s] != t.loser); s++ {
@@ -108,12 +118,27 @@ func (t *Table) newRound(offset place) {
 		hands[p] = d
 	}
 
-	r := round{
+	t.round = &round{
 		turn:    place(0),
 		latest:  bid(0),
 		players: players,
 		hands:   hands,
 	}
+
+	t.state = RoundStart
+	return nil
+}
+
+//Join adds the person to the table at the end of the current order
+// throws an error if they were already part of the table
+func (t *Table) Join(p person) error {
+	return nil
+}
+
+//Leave removes the person from the table.
+// it is an error to leave if the person is playing
+func (t *Table) Leave(p person) error {
+	return nil
 }
 
 //Play adds the person to the table at the end of the current order.
