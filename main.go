@@ -34,6 +34,17 @@ type task struct {
 	message
 }
 
+type Face uint8
+
+const (
+	One   Face = iota
+	Two   Face = iota
+	Three Face = iota
+	Four  Face = iota
+	Five  Face = iota
+	Six   Face = iota
+)
+
 type server struct {
 	*table
 	token string

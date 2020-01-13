@@ -1,234 +1,255 @@
 package game
 
 import (
-	"fmt"
 	"math/rand"
 	"time"
 )
 
-const defaultStartingHand = 5
-
-type ErrorGameStarted error
-type ErrorAlreadyPlaying error
-type ErrorBidOutOfTurn error
-
-type Face uint8
-
-const (
-	One   Face = iota
-	Two   Face = iota
-	Three Face = iota
-	Four  Face = iota
-	Five  Face = iota
-	Six   Face = iota
-)
-
-type State uint8
-
-const (
-	Empty State = iota
-	WaitingForSecond State = iota
-	Ready State = iota
-	RoundStart State = iota
-	RoundBid State = iota
-	RoundEnd State = iota
-	Done State = iota
-)
-
-type person string
-type place uint
-
-// bid is encoded as (quantity * 6) + face.
-// This gives us a single number that is monotonically increasing in both dimensions
-type bid uint
-
-// A quantity of dice
-type dice uint
-
-func successor(o order, bound int) order {
-	return order((int(o) + 1) % bound)
+//Monotonic maps two-component vector bid to monotonic space
+func Monotonic(quantity uint, face uint) uint {
+	return (quantity * 6) + face
 }
 
-//Round represents a single round from rolls to bidding to calling liar
-type round struct {
-	turn    place
-	latest  bid
-	players []person
-	hands   map[person][6]uint
+//Factorize maps a monotinc bid to two-component space
+func Factorize(bid uint) (quantity uint, face uint) {
+	quantity = bid / 6
+	face = bid % 6
+	return
 }
 
-//Table reflects a single table where a game is in progress
-type Table struct {
-	// State of the table
-	state State
-	// Order of people at the table
-	people []person
-	// Map of people to dice left
-	dice map[person]dice
-	// The starting hand size
-	startingHand dice
-	// Set of faces which are wild at this table
-	wilds map[Face]bool
-	// The last loser
-	loser person
-	// The current round
-	*round
-	// Random number source
-	*rand.Rand
+//Player is a player object with associated reporting fields
+type Player struct {
+	ID   string
+	Dice uint
+	Hand [6]uint
 }
 
-//New creates a new table running liar's dice
-func New() *Table {
-	return &Table{
-		people: make([]person, 0),
-		dice:   make(map[person]dice),
-		startingHand: defaultStartingHand,
-		wilds:  make(map[Face]bool),
-		Rand:   rand.New(rand.NewSource(time.Now().Unix())),
+//Rules of the game
+type Rules struct {
+	Dice  uint    //Number of dice players start with
+	Wilds [6]bool //Array of faces which are wild
+}
+
+//Game is a full game from start to finish
+type Game struct {
+	players []string
+	cups    map[string]uint
+	hands   map[string][6]uint
+	bidder  int  //The current bidder
+	bid     uint //The previous bid
+	prev    int  //The previous bidder
+	rng     *rand.Rand
+	Rules
+}
+
+//New creates a new game from the provided rules
+func New(r Rules) *Game {
+	return &Game{
+		cups:  make(map[string]uint),
+		hands: make(map[string][6]uint),
+		rng:   rand.New(rand.NewSource(time.Now().Unix())),
+		Rules: r,
 	}
 }
 
-func (t *Table) newRound(offset place) error {
-	if t.state != Ready {
-		return fmt.Errorf("table is not ready for a new round")
-	}
-
-	//Find the position of the last loser
-	var s place
-	for l := place(len(t.people)); s < l && (t.people[s] != t.loser); s++ {
-	}
-
-	//Build a subset of players with dice left
-	// we start with the person who was the last loser
-	var players []person
-	for i, l := s, place(len(t.people)); i < l+s; i++ {
-		p := t.people[i%l]
-		if t.dice[p] > 0 {
-			players = append(players, p)
+func (g Game) exists(id string) bool {
+	for _, p := range g.players {
+		if p == id {
+			return true
 		}
 	}
+	return false
+}
 
-	//Roll starting hands
-	hands := make(map[person][6]uint)
-	for _, p := range players {
-		var d [6]uint
-		for h := t.dice[p]; h > 0; h-- {
-			d[t.Intn(5)]++
+//round starts a new round of play
+func (g *Game) round(bidder int) error {
+	//TODO: Check if a player has won
+	g.roll()
+	g.bid = 0
+	//TODO: Check if the proposed bidder is valid
+	g.bidder = bidder
+	return nil
+}
+
+//roll randomizes all dice in the game
+func (g *Game) roll() {
+	for _, p := range g.players {
+		var h [6]uint
+		for i := uint(0); i < g.cups[p]; i++ {
+			h[g.rng.Intn(5)]++
 		}
-		hands[p] = d
+		g.hands[p] = h
 	}
-
-	t.round = &round{
-		turn:    place(0),
-		latest:  bid(0),
-		players: players,
-		hands:   hands,
-	}
-
-	t.state = RoundStart
-	return nil
 }
 
-//Join adds the person to the table at the end of the current order
-// throws an error if they were already part of the table
-func (t *Table) Join(p person) error {
-	return nil
-}
-
-//Leave removes the person from the table.
-// it is an error to leave if the person is playing
-func (t *Table) Leave(p person) error {
-	return nil
-}
-
-//Play adds the person to the table at the end of the current order.
-// throws an error if they were already playing
-// converts them to playing if they were a spectator
-func (t *Table) Play(p person) error {
-	if 
-
-	for _, r := range t.players {
-		if p == r {
-			if t.dice[p] > 0 {
-				return fmt.Errorf("%s already playing", p)
-			}
-			t.dice[p] = t.startingHand
-			return nil
+//returns the index of the next bidder or an error if there is no valid bidder left
+func (g *Game) next() (int, error) {
+	for i := 1; i < len(g.players); i++ {
+		b := (g.bidder + i) % len(g.players)
+		if g.cups[g.players[b]] > 0 {
+			return b, nil
 		}
 	}
-	t.players = append(t.players, p)
-	t.dice[p] = t.startingHand
-	return nil
+	return g.bidder, errNoBidder()
 }
 
-//Watch adds the player to the table as a spectator.
-//Throws an error if they were already watching.
-function (t *Table) Watch(p person) error {
-	for _, r := range t.players {
-		if p == r {
-			return fmt.Errorf("%s already watching or playing", p)
-		}
+//returns the number of dice in the game
+func (g *Game) dice() uint {
+	var sum uint
+	for _, c := range g.cups {
+		sum += c
 	}
-	t.players = append(t.players, p)
-	t.dice[p] = t.startingHand
+	return sum
+}
+
+//counts the number of dice in the game showing a particular face
+func (g *Game) count(face int) uint {
+	var sum uint
+	for _, p := range g.players {
+		sum += g.hands[p][face]
+	}
+	return sum
+}
+
+//Player finds a player in the game by id, returns error if not found
+func (g *Game) Player(id string) (*Player, error) {
+	if g.exists(id) {
+		return &Player{
+			ID:   id,
+			Dice: g.cups[id],
+			Hand: g.hands[id],
+		}, nil
+	}
+	return nil, errNotExist()
+}
+
+//Add adds a player to the game iff they aren't already present.
+// It throws an error if they are.
+func (g *Game) Add(id string) error {
+	if g.exists(id) {
+		return errExists()
+	}
+	g.players = append(g.players, id)
+	g.cups[id] = g.Rules.Dice
 	return nil
 }
 
-/*
-* Bid changes the last bid to the new bid if and only if
-* the turn matches the current player and
-* it is strictly greater than the last bid. It also
-* advances the turn by one
+//sets a player's hand to zero and restarts the round
+// the next valid bidder is the starting player
+func (g *Game) forfeit(id string) error {
+	g.cups[id] = 0
+	n, err := g.next()
+	if err != nil {
+		return err
+	}
+	return g.round(n)
+}
+
+//Forfeit sets a player's hand size to 0 and resets the round
+// returns an error if the player already lost or doesn't exist
+func (g *Game) Forfeit(id string) error {
+	if !g.exists(id) {
+		return errNotExist()
+	}
+	if g.cups[id] == 0 {
+		return errAlreadyLost()
+	}
+
+	return g.forfeit(id)
+}
+
+/*Bid changes the current bid to the new bid iff:
+* - The proposing bidder exists
+* - The proposing bidder matches the current bidder
+* - The proposed bid face is within range [0,6]
+* - The proposed bid quantity is within range [0,D] where D is the number of dice
+* 	currently in the game
+* - The proposed bid increases either the face or quantity of the last bid without
+*	decreasing either
 *
-* Returns an error or nil if sucessful
+* A successful bid updates the current bid, notes the bidder and advances the round
+*  to the next bidder.
+*
+* Returns nil if sucessful, otherwise error
  */
-func (t *Table) Bid(p player, quantity uint, f Face) error {
-	if p != t.players[t.turn] {
-		return ErrorOutOfTurn(fmt.Errorf("player out of turn was %s", p))
+func (g *Game) Bid(id string, quantity uint, face uint) error {
+	switch {
+	case !g.exists(id):
+		return errNotExist()
+	case id != g.players[g.bidder]:
+		return errOutOfTurn()
+	case face < 0, face > 6:
+		return errBidFace()
+	case quantity < 0, quantity > g.dice():
+		return errBidQuantity()
+	case Monotonic(quantity, face) <= g.bid:
+		q, f := Factorize(g.bid)
+		return errBidTooLow(q, f)
 	}
 
-	b := bid((quantity * 6) + uint(f))
-	if b <= t.last {
-		return ErrorBidTooLow(fmt.Errorf("bid was %d", b))
+	n, err := g.next()
+	if err != nil {
+		return err
 	}
 
-	t.last = b
-	t.turn = successor(t.turn, len(t.players))
+	g.prev = g.bidder
+	g.bid = Monotonic(quantity, face)
+	g.bidder = n
 	return nil
 }
 
-/*
-* Liar returns true if the last bid is inconsistent
-* with the game state.
+//LiarResult contains information about the result of a call of Liar
+type LiarResult struct {
+	Lying     bool
+	AccuserID string
+	AccusedID string
+}
+
+/*Liar returns a LiarResult based on if the last bid is inconsistent
+* with the actual game state.
 *
 * Consistency means that the number of wilds + Faces bid
-* is greater than the quantity
+* is greater than or equal to the quantity. If the bid is inconsistent
+* then the result of true.
+*
+* Liar will subtract a die from either the calling player or previous bidder
+* depending on whether the result was false or true respectively.
+* Liar also attempts to start a new game round and may return errors related to that
  */
-func (t *Table) Liar() bool {
-	f := Face(t.last % 6)
-
-	//Sum all hands for a total
-	var totals [6]uint
-	for _, h := range t.hands {
-		for i, v := range h {
-			totals[i] += v
-		}
+func (g *Game) Liar(id string) (LiarResult, error) {
+	if !g.exists(id) {
+		return LiarResult{}, errNotExist()
 	}
+	if id != g.players[g.bidder] {
+		return LiarResult{}, errOutOfTurn()
+	}
+
+	q, f := Factorize(g.bid)
 
 	//Make sure we don't double count if someone bet wilds
-	toCount := map[Face]bool{f: true}
-	for k, v := range t.wilds {
-		toCount[k] = v
-	}
+	faces := g.Wilds
+	faces[f] = true
 
-	//Now we count up everything
-	var count uint
-	for k, v := range toCount {
+	//Now we validate the bid
+	for i, v := range faces {
 		if v {
-			count += totals[k]
+			q -= g.count(i)
 		}
 	}
 
-	quantity := uint(t.last / 6)
-	return count >= quantity
+	result := LiarResult{
+		Lying:     q < 0,
+		AccusedID: g.players[g.prev],
+		AccuserID: id,
+	}
+	var loser int
+	if result.Lying {
+		g.cups[g.players[g.prev]]--
+		loser = g.prev
+	} else {
+		g.cups[g.players[g.bidder]]--
+		loser = g.bidder
+	}
+
+	return result, g.round(loser)
 }
