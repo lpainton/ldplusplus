@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+type prng interface {
+	Intn(int) int
+}
+
 //Monotonic maps two-component vector bid to monotonic space
 func Monotonic(quantity uint, face uint) uint {
 	return (quantity * 6) + face
@@ -38,7 +42,7 @@ type Game struct {
 	bidder  int  //The current bidder
 	bid     uint //The previous bid
 	prev    int  //The previous bidder
-	rng     *rand.Rand
+	rng     prng
 	Rules
 }
 
