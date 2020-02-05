@@ -42,7 +42,7 @@ type Game struct {
 	bidder  int  //The current bidder
 	bid     uint //The previous bid
 	prev    int  //The previous bidder
-	rng     prng
+	prng
 	Rules
 }
 
@@ -51,7 +51,7 @@ func New(r Rules) *Game {
 	return &Game{
 		cups:  make(map[string]uint),
 		hands: make(map[string][6]uint),
-		rng:   rand.New(rand.NewSource(time.Now().Unix())),
+		prng:  rand.New(rand.NewSource(time.Now().Unix())),
 		Rules: r,
 	}
 }
@@ -80,7 +80,7 @@ func (g *Game) roll() {
 	for _, p := range g.players {
 		var h [6]uint
 		for i := uint(0); i < g.cups[p]; i++ {
-			h[g.rng.Intn(5)]++
+			h[g.prng.Intn(5)]++
 		}
 		g.hands[p] = h
 	}
