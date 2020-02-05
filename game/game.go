@@ -1,3 +1,8 @@
+/*
+* Package game provides a complete model for a single game of liars dice.
+* For our purposes a game is a discrete play session starting from a fixed set of players who all have dice and ending when only one player has dice remaining.
+* Players
+ */
 package game
 
 import (
@@ -34,11 +39,14 @@ type Rules struct {
 	Wilds [6]bool //Array of faces which are wild
 }
 
+type hand = [6]uint
+type playerID = string
+
 //Game is a full game from start to finish
 type Game struct {
-	players []string
-	cups    map[string]uint
-	hands   map[string][6]uint
+	players []playerID
+	cups    map[playerID]uint
+	hands   map[playerID]hand
 	bidder  int  //The current bidder
 	bid     uint //The previous bid
 	prev    int  //The previous bidder
@@ -46,17 +54,31 @@ type Game struct {
 	Rules
 }
 
-//New creates a new game from the provided rules
-func New(r Rules) *Game {
-	return &Game{
-		cups:  make(map[string]uint),
-		hands: make(map[string][6]uint),
+//Pending is a completely new game that hasn't started play yet
+type Pending struct{ Game }
+
+//RoundStart is a game which is at the beginning of the round. Dice have been rolled but no bids made
+type RoundStart struct{ Game }
+
+//Bidding is a game where dice have been rolled, bids have been made but nobody has called liar
+type Bidding struct{ Game }
+
+//LiarCalled is one where someone has called liar and either won or lost
+type LiarCalled struct{ Game }
+
+//Over is a game where only one player has dice remaining
+type Over struct{ Game }
+
+//New creates a pending game from the provided set of rules
+func New(r Rules) *Pending {
+	return &Pending{Game{
 		prng:  rand.New(rand.NewSource(time.Now().Unix())),
 		Rules: r,
-	}
+	}}
 }
 
-func (g Game) exists(id string) bool {
+//decides if the player with id exists in the game
+func (g Game) exists(id playerID) bool {
 	for _, p := range g.players {
 		if p == id {
 			return true
@@ -65,25 +87,63 @@ func (g Game) exists(id string) bool {
 	return false
 }
 
-//round starts a new round of play
-func (g *Game) round(bidder int) error {
-	//TODO: Check if a player has won
-	g.roll()
-	g.bid = 0
-	//TODO: Check if the proposed bidder is valid
-	g.bidder = bidder
-	return nil
+//StartGame starts a pending game
+func (p Pending) StartGame(bidder int) (*RoundStart, error) {
+	//Ensure there are enough players to play a round
+	if len(p.players) < 2 {
+		return nil, errNotEnoughPlayers()
+	}
+
+	//Add dice to cups
+	var cups = make(map[playerID]uint)
+	for _, id := range p.players {
+		cups[id] = p.Dice
+	}
+
+	//Roll starting hands
+	h := rollAll(cups, p)
+
+	return &RoundStart{Game{
+		players: p.players,
+		cups:    cups,
+		hands:   h,
+		prng:    p.prng,
+		Rules:   p.Rules,
+	}}, nil
 }
 
-//roll randomizes all dice in the game
-func (g *Game) roll() {
-	for _, p := range g.players {
-		var h [6]uint
-		for i := uint(0); i < g.cups[p]; i++ {
-			h[g.prng.Intn(5)]++
+//NewRound starts a new round post liar being called
+func (l LiarCalled) NewRound(bidder int) (*RoundStart, error) {
+	//Ensure there are enough players to play a round
+	var count uint
+	for _, c := range l.cups {
+		if c > 0 {
+			count++
 		}
-		g.hands[p] = h
 	}
+	if count > 0 {
+		return nil, errNotEnoughPlayers()
+	}
+
+	return &RoundStart{l.Game}, nil
+}
+
+//rolls all dice in the provided cups
+func rollAll(cups map[playerID]uint, rng prng) map[playerID]hand {
+	m := make(map[playerID]hand)
+	for p, d := range cups {
+		m[p] = roll(d, rng)
+	}
+	return m
+}
+
+//rolls a new hand of dice of the given size given the provided rng
+func roll(dice uint, rng prng) hand {
+	var h [6]uint
+	for i := uint(0); i < dice; i++ {
+		h[rng.Intn(5)]++
+	}
+	return h
 }
 
 //returns the index of the next bidder or an error if there is no valid bidder left
