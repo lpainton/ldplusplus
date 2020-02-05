@@ -34,6 +34,9 @@ type ErrorBidTooLow struct {
 //ErrorOutOfTurn is thrown when an action is attempted out of valid turn order
 type ErrorOutOfTurn error
 
+//ErrorNotEnoughPlayers is thrown when there are not enough players to start a game
+type ErrorNotEnoughPlayers error
+
 func errNotExist() ErrorNotExist {
 	return errors.New("player does not exist")
 }
@@ -68,4 +71,8 @@ func errBidTooLow(quantity uint, face uint) ErrorBidTooLow {
 
 func errOutOfTurn() ErrorOutOfTurn {
 	return errors.New("action attempted by non-bidding player")
+}
+
+func errNotEnoughPlayers() ErrorNotEnoughPlayers {
+	return errors.New("not enough players to start the round")
 }
